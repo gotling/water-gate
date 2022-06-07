@@ -1,0 +1,6 @@
+watergate-kicad/watergate-kicad-backups
+watergate-kicad/watergate-kicad.pdf
+*-cache
+*.DS_Store
+.env
+~$*
