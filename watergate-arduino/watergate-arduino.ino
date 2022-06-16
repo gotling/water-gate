@@ -1,24 +1,40 @@
 /**
- * Watergate - Automatic watering for grow house
+ * Watergate - Automatic watering for growhouse
  *
  * FTDebouncer by Ubi de Feo
  * https://github.com/ubidefeo/FTDebouncer
  * DHT sensor library by Adafruit 
  * https://github.com/adafruit/DHT-sensor-library
-*/
+ * DallasTemperature by Miles Burton
+ * https://github.com/milesburton/Arduino-Temperature-Control-Library
+ * OneWire by Jim Studt, ...
+ * https://www.pjrc.com/teensy/td_libs_OneWire.html
+ */
 
 #include <DHT.h>
 #include <FTDebouncer.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+// Global
+#define ANALOG_MAX 4095
+
+// Battery voltage
+#define BATTERY_PIN 12
 
 // Hygro sensors
-#define ANALOG_MAX 4095
-#define SENSOR_PIN_1 13
-#define SENSOR_VCC_1 14
-#define SENSOR_DIGITAL_1 12
-#define SENSOR_PIN_2 27
+#define HYG_VCC_PIN 25
+#define HYG_1_PIN 34
+#define HYG_2_PIN 32
+#define HYG_3_PIN 35
+
+// DS18B20 temperature probe
+#define ONE_WIRE_PIN 33
+OneWire oneWire(ONE_WIRE_PIN);
+DallasTemperature owSensors(&oneWire);
 
 // DHT temperature and humidity
-#define DHTPIN 22
+#define DHTPIN 5
 #define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE);
 float temperatureOffset = 0;
@@ -37,11 +53,13 @@ FTDebouncer pinDebouncer;
 
 // State
 bool hygroActive = false;
-short hygro1 = 0;
-short hygro2 = 0;
+short hyg1 = 0;
+short hyg2 = 0;
+short hyg3 = 0;
 long nutCounter = 0;
 float temperature;
 short humidity;
+float soilTemperature;
 
 // Timers
 #define SENSOR_INTERVAL 5000
@@ -51,12 +69,13 @@ unsigned long hygroTime = millis();
 
 void primeHygro(bool state) {
   hygroActive = state;
-  digitalWrite(SENSOR_VCC_1, hygroActive);
+  digitalWrite(HYG_VCC_PIN, hygroActive);
 }
 
 void readHygro() {
-  hygro1 = analogRead(SENSOR_PIN_1);
-  hygro2 = analogRead(SENSOR_PIN_2);
+  hyg1 = analogRead(HYG_1_PIN);
+  hyg2 = analogRead(HYG_2_PIN);
+  hyg3 = analogRead(HYG_3_PIN);
 }
 
 /**
@@ -73,6 +92,14 @@ void readTempHum() {
   
   if (!isnan(newH)) {
     humidity = newH + humidityOffset;
+  }
+
+  // oneWire sensor
+  owSensors.requestTemperatures();
+  float newSoilTemperature = owSensors.getTempCByIndex(0);
+
+  if (!isnan(newSoilTemperature)) {
+    soilTemperature = newSoilTemperature / 100 * 100;
   }
 }
 
@@ -118,11 +145,16 @@ void serialLog() {
   Serial.print(" °C");
   Serial.print(" Humidity: ");
   Serial.print(humidity);
-  Serial.print(" %");
+  Serial.print(" % ");
+  Serial.print("Soil Temp: ");
+  Serial.print(soilTemperature);
+  Serial.print(" °C");
   Serial.print(" Hygro 1: ");
-  Serial.print(hygro1);
+  Serial.print(hyg1);
   Serial.print(" Hygro 2: ");
-  Serial.println(hygro2);
+  Serial.print(hyg2);
+  Serial.print(" Hygro 3: ");
+  Serial.println(hyg3);
 }
 
 
@@ -130,11 +162,11 @@ void setup() {
   Serial.begin(115200);
 
   // Init the humidity sensor board
-  pinMode(SENSOR_VCC_1, OUTPUT);
-  digitalWrite(SENSOR_VCC_1, LOW);
-  pinMode(SENSOR_PIN_1, INPUT);
-  pinMode(SENSOR_DIGITAL_1, INPUT);
-  pinMode(SENSOR_PIN_2, INPUT);
+  pinMode(HYG_VCC_PIN, OUTPUT);
+  digitalWrite(HYG_VCC_PIN, LOW);
+  pinMode(HYG_1_PIN, INPUT);
+  pinMode(HYG_2_PIN, INPUT);
+  pinMode(HYG_3_PIN, INPUT);
 
   // MOSFET
   pinMode(MOSFET_NUT, OUTPUT);
@@ -146,6 +178,9 @@ void setup() {
   pinDebouncer.addPin(BTN_LEVEL_2L, HIGH, INPUT_PULLUP);
   pinDebouncer.addPin(BTN_LEVEL_5L, HIGH, INPUT_PULLUP);
   pinDebouncer.begin();
+
+  // OneWire
+  owSensors.begin();
 
   // DHT
   dht.begin();
