@@ -26,11 +26,14 @@ int humidityOffset = 0;
 
 // Buttons
 FTDebouncer pinDebouncer;
-#define BTN_NUT 19
-#define BTN_TEST 4
+#define BTN_NUT 4
+#define BTN_TEST 15
+#define BTN_LEVEL_2L 16
+#define BTN_LEVEL_5L 17
 
 // MOSFET
-#define MOSFET_NUT 23
+#define MOSFET_NUT 2
+#define MOSFET_PUMP 13
 
 // State
 bool hygroActive = false;
@@ -86,11 +89,27 @@ void onPinActivated(int pinNumber) {
       Serial.println("More nuts");
       digitalWrite(MOSFET_NUT, HIGH);
       break;
+    case BTN_LEVEL_2L:
+      Serial.println("Liquid: > 2l");
+      // If nutrition should be added, do it now
+      break;
+    case BTN_LEVEL_5L:
+      Serial.println("Liquid: > 5l");
+      // Stop pump
+      break;
   }    
 }
 
 // Button released
 void onPinDeactivated(int pinNumber) {
+  switch (pinNumber) {
+     case BTN_LEVEL_2L:
+      Serial.println("Liquid: < 2l");
+      break;
+    case BTN_LEVEL_5L:
+      Serial.println("Liquid: < 5l");
+      break;
+  }
 }
 
 void serialLog() {
@@ -124,6 +143,8 @@ void setup() {
   // Button
   pinDebouncer.addPin(BTN_NUT, HIGH, INPUT_PULLUP);
   pinDebouncer.addPin(BTN_TEST, HIGH, INPUT_PULLUP);
+  pinDebouncer.addPin(BTN_LEVEL_2L, HIGH, INPUT_PULLUP);
+  pinDebouncer.addPin(BTN_LEVEL_5L, HIGH, INPUT_PULLUP);
   pinDebouncer.begin();
 
   // DHT
