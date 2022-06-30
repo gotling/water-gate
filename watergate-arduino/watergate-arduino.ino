@@ -48,6 +48,10 @@ FTDebouncer pinDebouncer;
 #define BTN_TEST 15 // 
 #define BTN_LEVEL_2L 16 // Blue/White
 #define BTN_LEVEL_5L 17 // Blue
+#define BTN_ACTION 26
+
+// LED
+#define LED_ACTION 14
 
 // MOSFET
 #define MOSFET_NUT 2 // Green
@@ -64,6 +68,8 @@ short humidity;
 float soilTemperature;
 short analogVoltage;
 float voltage;
+bool actionPump = false;
+bool actionNut = false;
 
 // Timers
 #define SENSOR_INTERVAL 5000
@@ -139,10 +145,43 @@ void onPinActivated(int pinNumber) {
     case BTN_LEVEL_2L:
       Serial.println("Liquid: > 2l");
       // If nutrition should be added, do it now
+      if (actionNut) {
+        addNutrition();
+        actionNut = false;
+      }
       break;
     case BTN_LEVEL_5L:
       Serial.println("Liquid: > 5l");
       // Stop pump
+      digitalWrite(MOSFET_PUMP, LOW);
+      actionPump = false;
+      break;
+    case BTN_ACTION:
+      
+      // Cancel pump and nutrition
+      if (actionNut) {
+        Serial.println("Action: Cancel");
+        actionPump = false;
+        actionNut = false;
+        
+        digitalWrite(LED_ACTION, LOW);
+        digitalWrite(MOSFET_PUMP, LOW);
+        digitalWrite(MOSFET_NUT, LOW);
+        break;
+      }
+
+      // If already pumping
+      if (actionPump) {
+        Serial.println("Action: Enable nutrition");
+        // Add nutrition when water level reached
+        actionNut = true;
+        digitalWrite(LED_ACTION, HIGH);
+      } else {
+        // Enable pump
+        Serial.println("Action: Start pump");
+        actionPump = true;
+        digitalWrite(MOSFET_PUMP, HIGH);
+      }
       break;
   }    
 }
@@ -193,6 +232,8 @@ void setup() {
   pinMode(HYG_3_PIN, INPUT);
 
   // MOSFET
+  pinMode(MOSFET_PUMP, OUTPUT);
+  digitalWrite(MOSFET_PUMP, LOW);
   pinMode(MOSFET_NUT, OUTPUT);
   digitalWrite(MOSFET_NUT, LOW);
 
@@ -201,7 +242,12 @@ void setup() {
   pinDebouncer.addPin(BTN_TEST, HIGH, INPUT_PULLUP);
   pinDebouncer.addPin(BTN_LEVEL_2L, HIGH, INPUT_PULLUP);
   pinDebouncer.addPin(BTN_LEVEL_5L, HIGH, INPUT_PULLUP);
+  pinDebouncer.addPin(BTN_ACTION, HIGH, INPUT_PULLUP);
   pinDebouncer.begin();
+
+  // LED
+  pinMode(LED_ACTION, OUTPUT);
+  digitalWrite(LED_ACTION, LOW);
 
   // Battery voltage
   pinMode(BATTERY_PIN, INPUT);
