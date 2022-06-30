@@ -24,13 +24,13 @@
 #define BATTERY_PIN 12
 
 // Hygro sensors
-#define HYG_VCC_PIN 25
-#define HYG_1_PIN 34
-#define HYG_2_PIN 32
-#define HYG_3_PIN 35
+#define HYG_VCC_PIN 25 // Green
+#define HYG_1_PIN 34 // Orange/White
+#define HYG_2_PIN 32 // Green/White
+#define HYG_3_PIN 35 // Blue/White
 
 // DS18B20 temperature probe
-#define ONE_WIRE_PIN 33
+#define ONE_WIRE_PIN 33 // Brown/White
 OneWire oneWire(ONE_WIRE_PIN);
 DallasTemperature owSensors(&oneWire);
 
@@ -43,13 +43,13 @@ int humidityOffset = 0;
 
 // Buttons
 FTDebouncer pinDebouncer;
-#define BTN_NUT 4
-#define BTN_TEST 15
-#define BTN_LEVEL_2L 16
-#define BTN_LEVEL_5L 17
+#define BTN_NUT 4 // Green/White
+#define BTN_TEST 15 // 
+#define BTN_LEVEL_2L 16 // Blue/White
+#define BTN_LEVEL_5L 17 // Blue
 
 // MOSFET
-#define MOSFET_NUT 2
+#define MOSFET_NUT 2 // Green
 #define MOSFET_PUMP 13
 
 // State
