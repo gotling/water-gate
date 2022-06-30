@@ -18,6 +18,7 @@
 
 // Global
 #define ANALOG_MAX 4095
+#define VOLTAGE_MULTIPLIER 269
 
 // Battery voltage
 #define BATTERY_PIN 12
@@ -60,6 +61,8 @@ long nutCounter = 0;
 float temperature;
 short humidity;
 float soilTemperature;
+short analogVoltage;
+float voltage;
 
 // Timers
 #define SENSOR_INTERVAL 5000
@@ -76,6 +79,13 @@ void readHygro() {
   hyg1 = analogRead(HYG_1_PIN);
   hyg2 = analogRead(HYG_2_PIN);
   hyg3 = analogRead(HYG_3_PIN);
+}
+
+void readVoltage() {
+  analogVoltage = analogRead(BATTERY_PIN);
+ 
+  // Max 14.5 = 4096
+  voltage = (float)analogVoltage / VOLTAGE_MULTIPLIER;
 }
 
 /**
@@ -154,7 +164,11 @@ void serialLog() {
   Serial.print(" Hygro 2: ");
   Serial.print(hyg2);
   Serial.print(" Hygro 3: ");
-  Serial.println(hyg3);
+  Serial.print(hyg3);
+  Serial.print(" Analog voltage: ");
+  Serial.print(analogVoltage);
+  Serial.print(" Voltage: ");
+  Serial.println(voltage);
 }
 
 
@@ -178,6 +192,9 @@ void setup() {
   pinDebouncer.addPin(BTN_LEVEL_2L, HIGH, INPUT_PULLUP);
   pinDebouncer.addPin(BTN_LEVEL_5L, HIGH, INPUT_PULLUP);
   pinDebouncer.begin();
+
+  // Battery voltage
+  pinMode(BATTERY_PIN, INPUT);
 
   // OneWire
   owSensors.begin();
@@ -206,6 +223,7 @@ void loop() {
     readHygro();
     primeHygro(false);
 
+    readVoltage();
     serialLog();
   }
 }
