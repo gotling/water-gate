@@ -19,6 +19,7 @@
 // Global
 #define ANALOG_MAX 4095
 #define VOLTAGE_MULTIPLIER 269
+#define NUT_TARGET 14
 
 // Battery voltage
 #define BATTERY_PIN 12
@@ -113,14 +114,23 @@ void readTempHum() {
   }
 }
 
+void addNutrition() {
+  nutCounter = 0;
+  digitalWrite(MOSFET_NUT, HIGH);
+}
+
 // Button pressed
 void onPinActivated(int pinNumber) {
   switch (pinNumber) {
     case BTN_NUT:
       nutCounter++;
-      Serial.print("Nut counter: ");
+      Serial.print("Nut: ");
       Serial.println(nutCounter);
-      digitalWrite(MOSFET_NUT, LOW);
+      if (nutCounter >= NUT_TARGET) {
+        digitalWrite(MOSFET_NUT, LOW);
+        digitalWrite(LED_ACTION, LOW);
+        Serial.println("Nut: Target reached");
+      }
       break;
     case BTN_TEST:
       Serial.println("More nuts");
