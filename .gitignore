@@ -4,3 +4,4 @@ watergate-kicad/watergate-kicad.pdf
 *.DS_Store
 .env
 ~$*
+watergate-arduino/config.h

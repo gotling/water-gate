@@ -16,6 +16,12 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
+#include <WiFiClientSecure.h>
+#include <WiFiManager.h>
+#include <PubSubClient.h>
+
+#include "config.h"
+
 // Global
 #define ANALOG_MAX 4095
 #define VOLTAGE_MULTIPLIER 269
@@ -57,11 +63,32 @@ FTDebouncer pinDebouncer;
 #define MOSFET_NUT 2 // Green
 #define MOSFET_PUMP 13
 
+// Network
+WiFiManager wm;
+WiFiClientSecure client;
+PubSubClient mqtt(client);
+
+#define MQTT_SERVER "io.adafruit.com"
+#define MQTT_PORT 8883
+// Set the following in config.h
+//#define MQTT_USER ""
+//#define MQTT_PASSWORD ""
+//#define MQTT_TOPIC ""
+
+// Sleep
+#define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
+#define TIME_TO_SLEEP  28800  // 8 Hours
+#define WAKE_TIME_SHORT 60 // In seconds, when just measuring
+#define WAKE_TIME_LONG 600 // In seconds, when watering
+
+RTC_DATA_ATTR int bootCount = 0;
+RTC_DATA_ATTR int bootTimerCount = 0;
+
 // State
 bool hygroActive = false;
-short hyg1 = 0;
-short hyg2 = 0;
-short hyg3 = 0;
+float hyg1 = 0;
+float hyg2 = 0;
+float hyg3 = 0;
 long nutCounter = 0;
 float temperature;
 short humidity;
@@ -72,20 +99,69 @@ bool actionPump = false;
 bool actionNut = false;
 
 // Timers
-#define SENSOR_INTERVAL 5000
+#define SENSOR_INTERVAL 15000
 unsigned long sensorTime = millis();
 #define HYGRO_WARMUP_TIME 500
 unsigned long hygroTime = millis();
+unsigned long wakeTime = millis();
+#define  MAX_PUMP_TIME 180000 // 3 minutes
+unsigned long pumpStartTime = millis();
+unsigned long timeToStayAwake;
+
+// Automation
+#define AUTO_WATER_X_BOOT 8 // If booting 1 time per hour, set to 8
+
+typedef enum {
+  BUTTON,
+  LED,
+  NUT,
+  PUMP,
+  LEVEL,
+  TIMER
+} Event;
+
+/*
+Method to print the reason by which ESP32
+has been awaken from sleep
+*/
+void check_wakeup_reason(){
+  ++bootCount;
+  Serial.println("Boot number: " + String(bootCount));
+
+  esp_sleep_wakeup_cause_t wakeup_reason;
+
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+
+  switch(wakeup_reason)
+  {
+    case ESP_SLEEP_WAKEUP_EXT0 :
+      Serial.println("Wakeup caused by external signal using RTC_IO");
+      timeToStayAwake = WAKE_TIME_LONG;
+      break;
+    case ESP_SLEEP_WAKEUP_EXT1 : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
+    case ESP_SLEEP_WAKEUP_TIMER:
+      ++bootTimerCount;
+      Serial.printf("Wakeup caused by timer: %d\n", bootTimerCount);
+      break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD : Serial.println("Wakeup caused by touchpad"); break;
+    case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
+    default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
+  }
+}
 
 void primeHygro(bool state) {
   hygroActive = state;
   digitalWrite(HYG_VCC_PIN, hygroActive);
 }
 
+float hygToPercentage(short value) {
+  return (ANALOG_MAX-value)/40.95;
+}
+
 void readHygro() {
-  hyg1 = analogRead(HYG_1_PIN);
-  hyg2 = analogRead(HYG_2_PIN);
-  hyg3 = analogRead(HYG_3_PIN);
+  hyg1 = hygToPercentage(analogRead(HYG_1_PIN));
+  hyg2 = hygToPercentage(analogRead(HYG_2_PIN));
+  hyg3 = hygToPercentage(analogRead(HYG_3_PIN));
 }
 
 void readVoltage() {
@@ -125,6 +201,19 @@ void addNutrition() {
   digitalWrite(MOSFET_NUT, HIGH);
 }
 
+void pump(bool start) {
+  if (start) {
+    pumpStartTime = millis();
+    actionPump = true;
+    digitalWrite(MOSFET_PUMP, HIGH);
+    mqttSendEvent(PUMP, 1);
+  } else {
+    actionPump = false;
+    digitalWrite(MOSFET_PUMP, LOW);
+    mqttSendEvent(PUMP, 0);
+  }
+}
+
 // Button pressed
 void onPinActivated(int pinNumber) {
   switch (pinNumber) {
@@ -137,6 +226,7 @@ void onPinActivated(int pinNumber) {
         digitalWrite(LED_ACTION, LOW);
         Serial.println("Nut: Target reached");
       }
+      mqttSendEvent(NUT, nutCounter);
       break;
     case BTN_TEST:
       Serial.println("More nuts");
@@ -149,24 +239,27 @@ void onPinActivated(int pinNumber) {
         addNutrition();
         actionNut = false;
       }
+      mqttSendEvent(LEVEL, 2);
       break;
     case BTN_LEVEL_5L:
       Serial.println("Liquid: > 5l");
       // Stop pump
-      digitalWrite(MOSFET_PUMP, LOW);
-      actionPump = false;
+      pump(false);
+      mqttSendEvent(LEVEL, 5);
       break;
     case BTN_ACTION:
       
       // Cancel pump and nutrition
       if (actionNut) {
         Serial.println("Action: Cancel");
-        actionPump = false;
+        
+        pump(false);
         actionNut = false;
         
         digitalWrite(LED_ACTION, LOW);
-        digitalWrite(MOSFET_PUMP, LOW);
+        
         digitalWrite(MOSFET_NUT, LOW);
+        mqttSendEvent(BUTTON, 3);
         break;
       }
 
@@ -176,11 +269,12 @@ void onPinActivated(int pinNumber) {
         // Add nutrition when water level reached
         actionNut = true;
         digitalWrite(LED_ACTION, HIGH);
+        mqttSendEvent(BUTTON, 2);
       } else {
         // Enable pump
         Serial.println("Action: Start pump");
-        actionPump = true;
-        digitalWrite(MOSFET_PUMP, HIGH);
+        pump(true);
+        mqttSendEvent(BUTTON, 1);
       }
       break;
   }    
@@ -191,9 +285,14 @@ void onPinDeactivated(int pinNumber) {
   switch (pinNumber) {
      case BTN_LEVEL_2L:
       Serial.println("Liquid: < 2l");
+      mqttSendEvent(LEVEL, 0);
       break;
     case BTN_LEVEL_5L:
       Serial.println("Liquid: < 5l");
+      mqttSendEvent(LEVEL, 2);
+      break;
+    case BTN_ACTION:
+      mqttSendEvent(BUTTON, 0);
       break;
   }
 }
@@ -210,19 +309,19 @@ void serialLog() {
   Serial.print(" °C");
   Serial.print(" Hygro 1: ");
   Serial.print(hyg1);
-  Serial.print(" Hygro 2: ");
+  Serial.print("% Hygro 2: ");
   Serial.print(hyg2);
-  Serial.print(" Hygro 3: ");
+  Serial.print("% Hygro 3: ");
   Serial.print(hyg3);
-  Serial.print(" Analog voltage: ");
+  Serial.print("% Analog voltage: ");
   Serial.print(analogVoltage);
   Serial.print(" Voltage: ");
   Serial.println(voltage);
 }
 
-
 void setup() {
   Serial.begin(115200);
+  delay(1000);
 
   // Init the humidity sensor board
   pinMode(HYG_VCC_PIN, OUTPUT);
@@ -258,12 +357,37 @@ void setup() {
   // DHT
   dht.begin();
 
+  // Setup WiFiManager
+  setupWiFi();
+
   // Setup Serial
   Serial.println("Ready");
+
+  // Setup deep sleep
+  check_wakeup_reason();
+
+  // Wake up on button press
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 0);
+
+  // Auto water every x boot caused by timer
+  if ((bootTimerCount > 0) && (bootTimerCount % AUTO_WATER_X_BOOT == 0)) {
+    pump(true);
+    timeToStayAwake = WAKE_TIME_LONG;
+    Serial.printf("Auto water of plants. Staying awake for %d seconds\n", timeToStayAwake);
+  } else {
+    timeToStayAwake = WAKE_TIME_SHORT;
+    Serial.printf("Measurement only. Staying awake for %d seconds\n", timeToStayAwake);
+  }
+
+  // Wake up on timer
+  esp_sleep_enable_timer_wakeup((TIME_TO_SLEEP - timeToStayAwake) * uS_TO_S_FACTOR);
+  Serial.println("Setup ESP32 to sleep for " + String(TIME_TO_SLEEP - timeToStayAwake) + " seconds");
 }
 
 void loop() {
   pinDebouncer.update();
+  wm.process();
+  mqtt.loop();
 
   // Read DHT22 and prepare for hygro reading
   if (millis() - sensorTime >= SENSOR_INTERVAL) {
@@ -281,5 +405,20 @@ void loop() {
 
     readVoltage();
     serialLog();
+    if (WiFi.status() == WL_CONNECTED)
+      mqttSend();
+  }
+
+  // Stops pump after 3 minutes if sensors has not triggered yet
+  if (actionPump && (millis() - pumpStartTime >= MAX_PUMP_TIME)) {
+    Serial.println("Maximum pump time exceeded");
+    pump(false);
+  }
+
+  // Time to sleep
+  // TODO: Check that no action is being performed
+  if (millis() - wakeTime >= timeToStayAwake * 1000) {
+    Serial.printf("Going to sleep for %d seconds", TIME_TO_SLEEP);
+    esp_deep_sleep_start();
   }
 }
