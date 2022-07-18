@@ -19,6 +19,7 @@
 #include <WiFiClientSecure.h>
 #include <WiFiManager.h>
 #include <PubSubClient.h>
+#include <time.h>
 
 #include "config.h"
 
@@ -75,14 +76,19 @@ PubSubClient mqtt(client);
 //#define MQTT_PASSWORD ""
 //#define MQTT_TOPIC ""
 
+// NTP
+const char* ntpServer = "se.pool.ntp.org";
+const long  gmtOffset_sec = 3600;
+const int   daylightOffset_sec = 3600;
+
 // Sleep
-#define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP  28800  // 8 Hours
-#define WAKE_TIME_SHORT 60 // In seconds, when just measuring
-#define WAKE_TIME_LONG 600 // In seconds, when watering
+#define uS_TO_S_FACTOR 1000000LL  /* Conversion factor for micro seconds to seconds */
+#define TIME_TO_SLEEP  3600  // 1 hour
+#define WAKE_TIME_SHORT 30 // In seconds, when just measuring
+#define WAKE_TIME_LONG 120 // In seconds, when just measuring
+#define WAKE_TIME_AFTER_EMPTY 60 // In seconds, when watering
 
 RTC_DATA_ATTR int bootCount = 0;
-RTC_DATA_ATTR int bootTimerCount = 0;
 
 // State
 bool hygroActive = false;
@@ -109,7 +115,10 @@ unsigned long pumpStartTime = millis();
 unsigned long timeToStayAwake;
 
 // Automation
-#define AUTO_WATER_X_BOOT 8 // If booting 1 time per hour, set to 8
+short waterHour[] = { 6, 19 };
+RTC_DATA_ATTR short wateredHour = -1;
+#define AUTO_WATER_FAIL_SAFE 24 // Water if started from timer this many times without watering
+RTC_DATA_ATTR short waterFailSafe = AUTO_WATER_FAIL_SAFE;
 
 typedef enum {
   ACTION,
@@ -120,12 +129,15 @@ typedef enum {
   TIMER
 } Event;
 
+
+
 /*
 Method to print the reason by which ESP32
-has been awaken from sleep
+has been awaken from sleep.
+Return true if manual wakeup
 */
-void check_wakeup_reason(){
-  ++bootCount;
+bool check_wakeup_reason(){
+  bootCount++;
   Serial.println("Boot number: " + String(bootCount));
 
   esp_sleep_wakeup_cause_t wakeup_reason;
@@ -140,8 +152,9 @@ void check_wakeup_reason(){
       break;
     case ESP_SLEEP_WAKEUP_EXT1 : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
     case ESP_SLEEP_WAKEUP_TIMER:
-      ++bootTimerCount;
-      Serial.printf("Wakeup caused by timer: %d\n", bootTimerCount);
+      configTime(gmtOffset_sec, daylightOffset_sec, NULL);
+      waterFailSafe--;
+      Serial.printf("Wakeup caused by timer. Water fail-safe: %d\n", waterFailSafe);
       break;
     case ESP_SLEEP_WAKEUP_TOUCHPAD : Serial.println("Wakeup caused by touchpad"); break;
     case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
@@ -319,6 +332,42 @@ void serialLog() {
   Serial.println(voltage);
 }
 
+void printLocalTime()
+{
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+}
+
+short getHour() {
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return false;
+  }
+
+  char timeHour[3];
+  strftime(timeHour, 3, "%H", &timeinfo);
+  return atoi(timeHour);
+}
+
+bool shouldWater(short hour) {
+  // Do nothing if we already watered this hour
+  if (wateredHour == hour)
+    return false;
+
+  for(int i = 0; i < sizeof(waterHour) / sizeof(waterHour[0]); i++) {
+    if (waterHour[i] == hour) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -360,6 +409,10 @@ void setup() {
   // Setup WiFiManager
   setupWiFi();
 
+  // NTP
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  printLocalTime();
+
   // Setup Serial
   Serial.println("Ready");
 
@@ -369,19 +422,47 @@ void setup() {
   // Wake up on button press
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 0);
 
-  // Auto water every x boot caused by timer
-  if ((bootTimerCount > 0) && (bootTimerCount % AUTO_WATER_X_BOOT == 0)) {
+  short hour = getHour();  
+
+  // Auto water if hour is correct and this is not our first boot
+  if ((bootCount > 0) && shouldWater(hour) || (waterFailSafe <= 0)) {
+    if (waterFailSafe <= 0)
+      mqttSendEvent(ACTION, 5);
+    
+    wateredHour = hour;
     pump(true);
     timeToStayAwake = WAKE_TIME_LONG;
-    Serial.printf("Auto water of plants. Staying awake for %d seconds\n", timeToStayAwake);
+    state = WATERING;
+    waterFailSafe = AUTO_WATER_FAIL_SAFE;
+    Serial.printf("Auto water of plants. Staying awake till %d seconds after water emptied\n", timeToStayAwake);
+    mqttSendEvent(ACTION, 2);
+  } else if (bootCount == 1) {
+    timeToStayAwake = WAKE_TIME_LONG;
+    Serial.printf("First boot. Staying awake for %d seconds\n", timeToStayAwake);
+    mqttSendEvent(ACTION, 0);
   } else {
     timeToStayAwake = WAKE_TIME_SHORT;
     Serial.printf("Measurement only. Staying awake for %d seconds\n", timeToStayAwake);
+    mqttSendEvent(ACTION, 1);
+  }
+}
+
+int secondsTillNextHour() {
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time, default to 3600");
+    return 3600;
   }
 
-  // Wake up on timer
-  esp_sleep_enable_timer_wakeup((TIME_TO_SLEEP - timeToStayAwake) * uS_TO_S_FACTOR);
-  Serial.println("Setup ESP32 to sleep for " + String(TIME_TO_SLEEP - timeToStayAwake) + " seconds");
+  char timeMinute[3];
+  strftime(timeMinute, 3, "%M", &timeinfo);
+  int minute = atoi(timeMinute);
+
+  char timeScond[3];
+  strftime(timeScond, 3, "%S", &timeinfo);
+  int second = atoi(timeScond);
+
+  return (60 - minute) * 60 - second;
 }
 
 void loop() {
@@ -417,8 +498,12 @@ void loop() {
 
   // Time to sleep
   // TODO: Check that no action is being performed
-  if (millis() - wakeTime >= timeToStayAwake * 1000) {
-    Serial.printf("Going to sleep for %d seconds", TIME_TO_SLEEP);
+    mqttSendEvent(ACTION, 0);
+    int seconds = secondsTillNextHour();
+    // Wait a bit longer to be sure hour has changed
+    seconds += 300;
+    Serial.printf("Going to sleep for %d seconds", seconds);
+    Serial.flush();
     esp_deep_sleep_start();
   }
 }
