@@ -106,6 +106,13 @@ float voltage;
 bool actionPump = false;
 bool actionNut = false;
 
+typedef enum {
+  MEASURING,
+  WATERING
+} states;
+
+states state = MEASURING;
+
 // Timers
 #define SENSOR_INTERVAL 15000
 unsigned long sensorTime = millis();
@@ -218,6 +225,7 @@ void addNutrition() {
 
 void pump(bool start) {
   if (start) {
+    state = WATERING;
     pumpStartTime = millis();
     actionPump = true;
     digitalWrite(MOSFET_PUMP, HIGH);
@@ -270,6 +278,7 @@ void onPinActivated(int pinNumber) {
         
         pump(false);
         actionNut = false;
+        state = MEASURING;
         
         digitalWrite(LED_ACTION, LOW);
         
@@ -496,10 +505,15 @@ void loop() {
   if (actionPump && (millis() - pumpStartTime >= MAX_PUMP_TIME)) {
     Serial.println("Maximum pump time exceeded");
     pump(false);
+    state = MEASURING;
+    mqttSendEvent(ACTION, 3);
+  }
+
   }
 
   // Time to sleep
   // TODO: Check that no action is being performed
+  if ((state == MEASURING) && (millis() - wakeTime >= timeToStayAwake * 1000)) {
     mqttSendEvent(ACTION, 0);
     int seconds = secondsTillNextHour();
     // Wait a bit longer to be sure hour has changed
