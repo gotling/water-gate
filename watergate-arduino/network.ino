@@ -2,13 +2,13 @@ char message[100];
 String clientId = "ESP32Watergate";
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
+  // Serial.print("Message arrived [");
+  // Serial.print(topic);
+  // Serial.print("] ");
   payload[length] = '\0';
 
   if (strcmp("gotling/feeds/karnhult.button", topic) == 0) {
-    Serial.println("PAYLOAD");
+    Serial.print("Topic: button Value: ");
     Serial.println(atoi((char *)payload));
     switch (atoi((char *)payload)) {
       case 11:
