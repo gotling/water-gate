@@ -16,6 +16,8 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
+#include "esp_wifi.h"
+#include "driver/adc.h"
 #include <WiFiClientSecure.h>
 #include <WiFiManager.h>
 #include <PubSubClient.h>
@@ -504,6 +506,10 @@ void loop() {
     seconds += 300;
     Serial.printf("Going to sleep for %d seconds", seconds);
     Serial.flush();
+    esp_sleep_enable_timer_wakeup(seconds * uS_TO_S_FACTOR);
+    esp_wifi_stop();
+    //adc_power_release();
+    delay(1000);
     esp_deep_sleep_start();
   }
 }
