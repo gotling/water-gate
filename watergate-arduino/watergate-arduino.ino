@@ -191,7 +191,7 @@ void readTempHum() {
   owSensors.requestTemperatures();
   float newSoilTemperature = owSensors.getTempCByIndex(0);
 
-  if (!isnan(newSoilTemperature)) {
+  if (!isnan(newSoilTemperature) && newSoilTemperature > -127) {
     soilTemperature = newSoilTemperature / 100 * 100;
   }
 }
