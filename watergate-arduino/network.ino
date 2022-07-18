@@ -29,7 +29,7 @@ void setupWiFi() {
   WiFi.mode(WIFI_STA);
   //wm.resetSettings();
   wm.setConfigPortalBlocking(false);
-  wm.setConfigPortalTimeout(60);
+  wm.setConfigPortalTimeout(120);
   //wm.setParamsPage(true);
 
   // invert theme, dark
@@ -91,7 +91,7 @@ void mqttSend() {
 
 void mqttSendEvent(Event event, short value) {
   switch (event) {
-    case BUTTON:
+    case ACTION:
       sprintf(message, "button,%d\n", value);
       break;
     case LED:

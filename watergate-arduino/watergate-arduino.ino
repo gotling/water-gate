@@ -112,7 +112,7 @@ unsigned long timeToStayAwake;
 #define AUTO_WATER_X_BOOT 8 // If booting 1 time per hour, set to 8
 
 typedef enum {
-  BUTTON,
+  ACTION,
   LED,
   NUT,
   PUMP,
@@ -259,7 +259,7 @@ void onPinActivated(int pinNumber) {
         digitalWrite(LED_ACTION, LOW);
         
         digitalWrite(MOSFET_NUT, LOW);
-        mqttSendEvent(BUTTON, 3);
+        mqttSendEvent(ACTION, 0);
         break;
       }
 
@@ -269,12 +269,12 @@ void onPinActivated(int pinNumber) {
         // Add nutrition when water level reached
         actionNut = true;
         digitalWrite(LED_ACTION, HIGH);
-        mqttSendEvent(BUTTON, 2);
+        mqttSendEvent(ACTION, -2);
       } else {
         // Enable pump
         Serial.println("Action: Start pump");
         pump(true);
-        mqttSendEvent(BUTTON, 1);
+        mqttSendEvent(ACTION, -1);
       }
       break;
   }    
