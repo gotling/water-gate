@@ -122,6 +122,7 @@ unsigned long wakeTime = millis();
 #define  MAX_PUMP_TIME 180000 // 3 minutes
 unsigned long pumpStartTime = millis();
 unsigned long timeToStayAwake;
+#define MAX_WAKE_TIME 900000 // 15 minutes
 
 // Automation
 short waterHour[] = { 6, 19 };
@@ -310,6 +311,9 @@ void onPinDeactivated(int pinNumber) {
      case BTN_LEVEL_2L:
       Serial.println("Liquid: < 2l");
       mqttSendEvent(LEVEL, 0);
+      wakeTime = millis();
+      timeToStayAwake = WAKE_TIME_AFTER_EMPTY;
+      state = MEASURING;
       break;
     case BTN_LEVEL_5L:
       Serial.println("Liquid: < 5l");
@@ -509,6 +513,11 @@ void loop() {
     mqttSendEvent(ACTION, 3);
   }
 
+  // Stop measuring if max time exceeded
+  if ((state == WATERING) && (millis() - wakeTime >= MAX_WAKE_TIME)) {
+    Serial.println("Maximum wake time exceeded");
+    state = MEASURING;
+    mqttSendEvent(ACTION, 4);
   }
 
   // Time to sleep
