@@ -158,7 +158,7 @@ bool check_wakeup_reason(){
   {
     case ESP_SLEEP_WAKEUP_EXT0 :
       Serial.println("Wakeup caused by external signal using RTC_IO");
-      timeToStayAwake = WAKE_TIME_LONG;
+      return true;
       break;
     case ESP_SLEEP_WAKEUP_EXT1 : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
     case ESP_SLEEP_WAKEUP_TIMER:
@@ -170,6 +170,7 @@ bool check_wakeup_reason(){
     case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
     default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
   }
+  return false;
 }
 
 void primeHygro(bool state) {
@@ -320,7 +321,6 @@ void onPinDeactivated(int pinNumber) {
       mqttSendEvent(LEVEL, 2);
       break;
     case BTN_ACTION:
-      mqttSendEvent(BUTTON, 0);
       break;
   }
 }
@@ -432,7 +432,7 @@ void setup() {
   Serial.println("Ready");
 
   // Setup deep sleep
-  check_wakeup_reason();
+  bool manual = check_wakeup_reason();
 
   // Wake up on button press
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 0);
@@ -455,6 +455,9 @@ void setup() {
     timeToStayAwake = WAKE_TIME_LONG;
     Serial.printf("First boot. Staying awake for %d seconds\n", timeToStayAwake);
     mqttSendEvent(ACTION, 0);
+  } else if (manual) {
+    timeToStayAwake = WAKE_TIME_LONG;
+    Serial.printf("Manual wakeup. Staying awake for %d seconds\n", timeToStayAwake);
   } else {
     timeToStayAwake = WAKE_TIME_SHORT;
     Serial.printf("Measurement only. Staying awake for %d seconds\n", timeToStayAwake);
