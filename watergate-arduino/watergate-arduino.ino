@@ -28,7 +28,7 @@
 #define NUT_TARGET 14
 
 // Battery voltage
-#define BATTERY_PIN 12
+#define BATTERY_PIN 33 // Move from 12 to 33
 
 // Hygro sensors
 #define HYG_VCC_PIN 25 // Green
@@ -37,7 +37,7 @@
 #define HYG_3_PIN 35 // Blue/White
 
 // DS18B20 temperature probe
-#define ONE_WIRE_PIN 33 // Brown/White
+#define ONE_WIRE_PIN 27 // Brown/White 33 move to 12 move to 27
 OneWire oneWire(ONE_WIRE_PIN);
 DallasTemperature owSensors(&oneWire);
 
