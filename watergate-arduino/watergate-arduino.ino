@@ -9,6 +9,10 @@
  * https://github.com/milesburton/Arduino-Temperature-Control-Library
  * OneWire by Jim Studt, ...
  * https://www.pjrc.com/teensy/td_libs_OneWire.html
+ * WiFiManager by tzapu
+ * https://github.com/tzapu/WiFiManager
+ * PubSubClient by Nick O'Leary
+ * https://github.com/knolleary/pubsubclient
  */
 
 #include <DHT.h>
