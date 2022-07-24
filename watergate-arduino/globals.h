@@ -3,6 +3,7 @@
 
 #define ANALOG_MAX 4095
 #define VOLTAGE_MULTIPLIER 269
+#define uS_TO_S_FACTOR 1000000LL  /* Conversion factor for micro seconds to seconds */
 
 // PIN assignments
 // Hygro sensors
@@ -17,6 +18,11 @@
 
 // Battery voltage
 #define BATTERY_PIN 33
+
+// NTP
+constexpr const char* ntpServer = "se.pool.ntp.org";
+constexpr const long gmtOffset_sec = 3600;
+constexpr const int daylightOffset_sec = 3600;
 
 // State
 extern bool hygroActive;

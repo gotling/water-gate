@@ -27,7 +27,7 @@
 #include "config.h"
 #include "globals.h"
 #include "sensor.h"
-
+#include "time_functions.h"
 
 // Global
 #define NUT_TARGET 14
@@ -58,20 +58,6 @@ PubSubClient mqtt(client);
 //#define MQTT_USER ""
 //#define MQTT_PASSWORD ""
 //#define MQTT_TOPIC ""
-
-// NTP
-const char* ntpServer = "se.pool.ntp.org";
-const long  gmtOffset_sec = 3600;
-const int   daylightOffset_sec = 3600;
-
-// Sleep
-#define uS_TO_S_FACTOR 1000000LL  /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP  3600  // 1 hour
-#define WAKE_TIME_SHORT 30 // In seconds, when just measuring
-#define WAKE_TIME_LONG 120 // In seconds, when just measuring
-#define WAKE_TIME_AFTER_EMPTY 60 // In seconds, when watering
-
-RTC_DATA_ATTR int bootCount = 0;
 
 // State
 bool hygroActive = false;
@@ -105,8 +91,6 @@ unsigned long timeToStayAwake;
 // Automation
 short waterHour[] = { 6, 19 };
 RTC_DATA_ATTR short wateredHour = -1;
-#define AUTO_WATER_FAIL_SAFE 24 // Water if started from timer this many times without watering
-RTC_DATA_ATTR short waterFailSafe = AUTO_WATER_FAIL_SAFE;
 
 typedef enum {
   ACTION,
@@ -116,40 +100,6 @@ typedef enum {
   LEVEL,
   TIMER
 } Event;
-
-
-
-/*
-Method to print the reason by which ESP32
-has been awaken from sleep.
-Return true if manual wakeup
-*/
-bool check_wakeup_reason(){
-  bootCount++;
-  Serial.println("Boot number: " + String(bootCount));
-
-  esp_sleep_wakeup_cause_t wakeup_reason;
-
-  wakeup_reason = esp_sleep_get_wakeup_cause();
-
-  switch(wakeup_reason)
-  {
-    case ESP_SLEEP_WAKEUP_EXT0 :
-      Serial.println("Wakeup caused by external signal using RTC_IO");
-      return true;
-      break;
-    case ESP_SLEEP_WAKEUP_EXT1 : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
-    case ESP_SLEEP_WAKEUP_TIMER:
-      configTime(gmtOffset_sec, daylightOffset_sec, NULL);
-      waterFailSafe--;
-      Serial.printf("Wakeup caused by timer. Water fail-safe: %d\n", waterFailSafe);
-      break;
-    case ESP_SLEEP_WAKEUP_TOUCHPAD : Serial.println("Wakeup caused by touchpad"); break;
-    case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
-    default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
-  }
-  return false;
-}
 
 void addNutrition() {
   nutCounter = 0;
@@ -278,28 +228,6 @@ void serialLog() {
   Serial.println(voltage);
 }
 
-void printLocalTime()
-{
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    Serial.println("Failed to obtain time");
-    return;
-  }
-  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
-}
-
-short getHour() {
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    Serial.println("Failed to obtain time");
-    return false;
-  }
-
-  char timeHour[3];
-  strftime(timeHour, 3, "%H", &timeinfo);
-  return atoi(timeHour);
-}
-
 bool shouldWater(short hour) {
   // Do nothing if we already watered this hour
   if (wateredHour == hour)
@@ -342,9 +270,8 @@ void setup() {
   // Setup WiFiManager
   setupWiFi();
 
-  // NTP
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  printLocalTime();
+  // Setup NTP
+  setupTime();
 
   // Setup Serial
   Serial.println("Ready");
@@ -383,29 +310,11 @@ void setup() {
   }
 }
 
-int secondsTillNextHour() {
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    Serial.println("Failed to obtain time, default to 3600");
-    return 3600;
-  }
-
-  char timeMinute[3];
-  strftime(timeMinute, 3, "%M", &timeinfo);
-  int minute = atoi(timeMinute);
-
-  char timeScond[3];
-  strftime(timeScond, 3, "%S", &timeinfo);
-  int second = atoi(timeScond);
-
-  return (60 - minute) * 60 - second;
-}
-
 void loop() {
   pinDebouncer.update();
   wm.process();
   mqtt.loop();
-  
+
   if (readSensor()) {
     serialLog();
     if (WiFi.status() == WL_CONNECTED)
