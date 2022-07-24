@@ -15,10 +15,7 @@
  * https://github.com/knolleary/pubsubclient
  */
 
-#include <DHT.h>
 #include <FTDebouncer.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
 
 #include "esp_wifi.h"
 #include "driver/adc.h"
@@ -28,32 +25,16 @@
 #include <time.h>
 
 #include "config.h"
+#include "globals.h"
+#include "sensor.h"
+
 
 // Global
-#define ANALOG_MAX 4095
 #define VOLTAGE_MULTIPLIER 269
 #define NUT_TARGET 14
 
 // Battery voltage
 #define BATTERY_PIN 33 // Move from 12 to 33
-
-// Hygro sensors
-#define HYG_VCC_PIN 25 // Green
-#define HYG_1_PIN 34 // Orange/White
-#define HYG_2_PIN 32 // Green/White
-#define HYG_3_PIN 35 // Blue/White
-
-// DS18B20 temperature probe
-#define ONE_WIRE_PIN 27 // Brown/White 33 move to 12 move to 27
-OneWire oneWire(ONE_WIRE_PIN);
-DallasTemperature owSensors(&oneWire);
-
-// DHT temperature and humidity
-#define DHTPIN 5
-#define DHTTYPE DHT22
-DHT dht(DHTPIN, DHTTYPE);
-float temperatureOffset = 0;
-int humidityOffset = 0;
 
 // Buttons
 FTDebouncer pinDebouncer;
@@ -101,10 +82,11 @@ bool hygroActive = false;
 float hyg1 = 0;
 float hyg2 = 0;
 float hyg3 = 0;
-long nutCounter = 0;
 float temperature;
 short humidity;
 float soilTemperature;
+
+long nutCounter = 0;
 short analogVoltage;
 float voltage;
 bool actionPump = false;
@@ -177,51 +159,11 @@ bool check_wakeup_reason(){
   return false;
 }
 
-void primeHygro(bool state) {
-  hygroActive = state;
-  digitalWrite(HYG_VCC_PIN, hygroActive);
-}
-
-float hygToPercentage(short value) {
-  return (ANALOG_MAX-value)/40.95;
-}
-
-void readHygro() {
-  hyg1 = hygToPercentage(analogRead(HYG_1_PIN));
-  hyg2 = hygToPercentage(analogRead(HYG_2_PIN));
-  hyg3 = hygToPercentage(analogRead(HYG_3_PIN));
-}
-
 void readVoltage() {
   analogVoltage = analogRead(BATTERY_PIN);
  
   // Max 14.5 = 4096
   voltage = (float)analogVoltage / VOLTAGE_MULTIPLIER;
-}
-
-/**
- * Read temperature and humidity from DHT sensor
- * Assignes to global variables if valid value
- */
-void readTempHum() {
-  float newT = dht.readTemperature();
-  float newH = dht.readHumidity();
-  
-  if (!isnan(newT)) {
-    temperature = (newT + temperatureOffset) / 100 * 100;
-  }
-  
-  if (!isnan(newH)) {
-    humidity = newH + humidityOffset;
-  }
-
-  // oneWire sensor
-  owSensors.requestTemperatures();
-  float newSoilTemperature = owSensors.getTempCByIndex(0);
-
-  if (!isnan(newSoilTemperature) && newSoilTemperature > -127) {
-    soilTemperature = newSoilTemperature / 100 * 100;
-  }
 }
 
 void addNutrition() {
@@ -419,11 +361,8 @@ void setup() {
   // Battery voltage
   pinMode(BATTERY_PIN, INPUT);
 
-  // OneWire
-  owSensors.begin();
-
-  // DHT
-  dht.begin();
+  // OneWire & DHT
+  setupSensor();
 
   // Setup WiFiManager
   setupWiFi();
