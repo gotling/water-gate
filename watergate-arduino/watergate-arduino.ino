@@ -96,10 +96,6 @@ typedef enum {
 states state = MEASURING;
 
 // Timers
-#define SENSOR_INTERVAL 15000
-unsigned long sensorTime = millis();
-#define HYGRO_WARMUP_TIME 500
-unsigned long hygroTime = millis();
 unsigned long wakeTime = millis();
 #define  MAX_PUMP_TIME 180000 // 3 minutes
 unsigned long pumpStartTime = millis();
@@ -409,22 +405,8 @@ void loop() {
   pinDebouncer.update();
   wm.process();
   mqtt.loop();
-
-  // Read DHT22 and prepare for hygro reading
-  if (millis() - sensorTime >= SENSOR_INTERVAL) {
-    readTempHum();
-    sensorTime = millis();
-
-    primeHygro(true);
-    hygroTime = millis();
-  }
-
-  // Read hygro after waiting for warmup
-  if (hygroActive && millis() - hygroTime >= HYGRO_WARMUP_TIME) {
-    readHygro();
-    primeHygro(false);
-
-    readVoltage();
+  
+  if (readSensor()) {
     serialLog();
     if (WiFi.status() == WL_CONNECTED)
       mqttSend();

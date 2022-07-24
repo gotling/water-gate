@@ -11,6 +11,9 @@ int humidityOffset = 0;
 OneWire oneWire(ONE_WIRE_PIN);
 DallasTemperature owSensors(&oneWire);
 
+unsigned long sensorTime = millis();
+unsigned long hygroTime = millis();
+
 /**
  * Turn on power to hygro sensors in preparation for reading their values
  */
@@ -30,7 +33,7 @@ void readHygro() {
 
 /**
  * Value returned from sensor is analog between 0 (maximum) and 4095 (minimum).
- * (float) percentage
+ * @returns float percentage
  */
 float hygToPercentage(short value) {
   return (ANALOG_MAX-value)/40.95;
@@ -85,4 +88,30 @@ void setupSensor() {
 
   owSensors.begin();
   dht.begin();
+}
+
+/**
+ * Prepare for reading of sensor data and read sensor data.
+ * @returns bool true if data has been read
+ */
+bool readSensor() {
+  // Read DHT22 and prepare for hygro reading
+  if (millis() - sensorTime >= SENSOR_INTERVAL) {
+    readTempHum();
+    sensorTime = millis();
+
+    primeHygro(true);
+    hygroTime = millis();
+  }
+
+  // Read hygro after waiting for warmup
+  if (hygroActive && millis() - hygroTime >= HYGRO_WARMUP_TIME) {
+    readHygro();
+    primeHygro(false);
+
+    readVoltage();
+    return true;
+  }
+
+  return false;
 }
