@@ -62,9 +62,27 @@ void readTempHum() {
 }
 
 /**
+ * Read battery voltage and convert to float
+ */
+void readVoltage() {
+  analogVoltage = analogRead(BATTERY_PIN);
+ 
+  // Max 14.5 = 4096
+  voltage = (float)analogVoltage / VOLTAGE_MULTIPLIER;
+}
+
+/**
  * Initialize DHT and OneWire
  */
 void setupSensor() {
+  pinMode(HYG_VCC_PIN, OUTPUT);
+  digitalWrite(HYG_VCC_PIN, LOW);
+  pinMode(HYG_1_PIN, INPUT);
+  pinMode(HYG_2_PIN, INPUT);
+  pinMode(HYG_3_PIN, INPUT);
+
+  pinMode(BATTERY_PIN, INPUT);
+
   owSensors.begin();
   dht.begin();
 }

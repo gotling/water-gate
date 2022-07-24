@@ -12,6 +12,7 @@ void primeHygro(bool state);
 float hygToPercentage(short value);
 void readHygro();
 void readTempHum();
+void readVoltage();
 void setupSensor();
 
 #endif

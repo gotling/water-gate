@@ -30,11 +30,7 @@
 
 
 // Global
-#define VOLTAGE_MULTIPLIER 269
 #define NUT_TARGET 14
-
-// Battery voltage
-#define BATTERY_PIN 33 // Move from 12 to 33
 
 // Buttons
 FTDebouncer pinDebouncer;
@@ -85,10 +81,10 @@ float hyg3 = 0;
 float temperature;
 short humidity;
 float soilTemperature;
-
-long nutCounter = 0;
 short analogVoltage;
 float voltage;
+
+long nutCounter = 0;
 bool actionPump = false;
 bool actionNut = false;
 
@@ -157,13 +153,6 @@ bool check_wakeup_reason(){
     default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
   }
   return false;
-}
-
-void readVoltage() {
-  analogVoltage = analogRead(BATTERY_PIN);
- 
-  // Max 14.5 = 4096
-  voltage = (float)analogVoltage / VOLTAGE_MULTIPLIER;
 }
 
 void addNutrition() {
@@ -333,13 +322,6 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  // Init the humidity sensor board
-  pinMode(HYG_VCC_PIN, OUTPUT);
-  digitalWrite(HYG_VCC_PIN, LOW);
-  pinMode(HYG_1_PIN, INPUT);
-  pinMode(HYG_2_PIN, INPUT);
-  pinMode(HYG_3_PIN, INPUT);
-
   // MOSFET
   pinMode(MOSFET_PUMP, OUTPUT);
   digitalWrite(MOSFET_PUMP, LOW);
@@ -358,10 +340,7 @@ void setup() {
   pinMode(LED_ACTION, OUTPUT);
   digitalWrite(LED_ACTION, LOW);
 
-  // Battery voltage
-  pinMode(BATTERY_PIN, INPUT);
-
-  // OneWire & DHT
+  // Hygro, OneWire & DHT
   setupSensor();
 
   // Setup WiFiManager
