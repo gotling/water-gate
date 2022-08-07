@@ -12,6 +12,10 @@
 #define HYG_2_PIN 32    // Green/White
 #define HYG_3_PIN 35    // Blue/White
 
+// Level
+#define BTN_LEVEL_2L 16 // Blue/White
+#define BTN_LEVEL_5L 17 // Blue
+
 // DHT22 and DS18B20
 #define DHTPIN 5
 #define ONE_WIRE_PIN 27 // Brown/White
@@ -32,6 +36,7 @@ extern float hyg3;
 extern float temperature;
 extern short humidity;
 extern float soilTemperature;
+extern short level;
 
 extern short analogVoltage;
 extern float voltage;

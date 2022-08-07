@@ -36,8 +36,6 @@
 FTDebouncer pinDebouncer;
 #define BTN_NUT 4 // Green/White
 #define BTN_TEST 15 // 
-#define BTN_LEVEL_2L 16 // Blue/White
-#define BTN_LEVEL_5L 17 // Blue
 #define BTN_ACTION 26
 
 // LED
@@ -145,12 +143,14 @@ void onPinActivated(int pinNumber) {
         addNutrition();
         actionNut = false;
       }
+      level = 2;
       mqttSendEvent(LEVEL, 2);
       break;
     case BTN_LEVEL_5L:
       Serial.println("Liquid: > 5l");
       // Stop pump
       pump(false);
+      level = 5;
       mqttSendEvent(LEVEL, 5);
       break;
     case BTN_ACTION:
@@ -192,6 +192,7 @@ void onPinDeactivated(int pinNumber) {
   switch (pinNumber) {
      case BTN_LEVEL_2L:
       Serial.println("Liquid: < 2l");
+      level = 0;
       mqttSendEvent(LEVEL, 0);
       wakeTime = millis();
       timeToStayAwake = WAKE_TIME_AFTER_EMPTY;
@@ -199,6 +200,7 @@ void onPinDeactivated(int pinNumber) {
       break;
     case BTN_LEVEL_5L:
       Serial.println("Liquid: < 5l");
+      level = 2;
       mqttSendEvent(LEVEL, 2);
       break;
     case BTN_ACTION:

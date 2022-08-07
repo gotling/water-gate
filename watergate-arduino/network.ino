@@ -78,7 +78,7 @@ bool mqttConnect() {
 }
 
 void mqttSend() {
-  sprintf(message, "temperature,%.1f\nhumidity,%d\nvoltage,%.1f\nhyg1,%.1f\nhyg2,%.1f\nhyg3,%.1f\nsoil_temperature,%.1f", temperature, humidity, voltage, hyg1, hyg2, hyg3, soilTemperature);
+  sprintf(message, "temperature,%.1f\nhumidity,%d\nvoltage,%.1f\nhyg1,%.1f\nhyg2,%.1f\nhyg3,%.1f\nsoil_temperature,%.1f\nlevel,%d", temperature, humidity, voltage, hyg1, hyg2, hyg3, soilTemperature, level);
 
   if (mqttConnect()) {
     if (mqtt.publish(MQTT_TOPIC, message)) {

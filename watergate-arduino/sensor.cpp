@@ -75,6 +75,24 @@ void readVoltage() {
 }
 
 /**
+ * Read level sensors. Connected pulled high so values are inverted.
+ * Set global variable level or -1 if invalid value is read
+ */
+void readLevel() {
+    short l2 = !digitalRead(BTN_LEVEL_2L);
+    short l5 = !digitalRead(BTN_LEVEL_5L);
+
+    if ((l2 == LOW) && (l5 == LOW))
+      level = 0;
+    else if ((l2 == HIGH) && (l5 == LOW))
+      level = 2;
+    else if ((l2 == HIGH) && (l5 == HIGH))
+      level = 5;
+    else
+      level = -1; // Should not be possible
+}
+
+/**
  * Initialize DHT and OneWire
  */
 void setupSensor() {
@@ -98,6 +116,7 @@ bool readSensor() {
   // Read DHT22 and prepare for hygro reading
   if (millis() - sensorTime >= SENSOR_INTERVAL) {
     readTempHum();
+    readLevel();
     sensorTime = millis();
 
     primeHygro(true);
