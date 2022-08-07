@@ -67,6 +67,7 @@ short humidity;
 float soilTemperature;
 short analogVoltage;
 float voltage;
+short level = 0;
 
 long nutCounter = 0;
 bool actionPump = false;
