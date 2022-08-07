@@ -30,6 +30,7 @@ void setupWiFi() {
   //wm.resetSettings();
   wm.setConfigPortalBlocking(false);
   wm.setConfigPortalTimeout(120);
+  wm.setConnectTimeout(30);
   //wm.setParamsPage(true);
 
   // invert theme, dark
