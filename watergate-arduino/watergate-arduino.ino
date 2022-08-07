@@ -28,6 +28,7 @@
 #include "globals.h"
 #include "sensor.h"
 #include "time_functions.h"
+#include "output.h"
 
 // Global
 #define NUT_TARGET 14
@@ -37,9 +38,6 @@ FTDebouncer pinDebouncer;
 #define BTN_NUT 4 // Green/White
 #define BTN_TEST 15 // 
 #define BTN_ACTION 26
-
-// LED
-#define LED_ACTION 14
 
 // MOSFET
 #define MOSFET_NUT 2 // Green
@@ -209,28 +207,6 @@ void onPinDeactivated(int pinNumber) {
   }
 }
 
-void serialLog() {
-  Serial.print("Temp: ");
-  Serial.print(temperature);
-  Serial.print(" °C");
-  Serial.print(" Humidity: ");
-  Serial.print(humidity);
-  Serial.print(" % ");
-  Serial.print("Soil Temp: ");
-  Serial.print(soilTemperature);
-  Serial.print(" °C");
-  Serial.print(" Hygro 1: ");
-  Serial.print(hyg1);
-  Serial.print("% Hygro 2: ");
-  Serial.print(hyg2);
-  Serial.print("% Hygro 3: ");
-  Serial.print(hyg3);
-  Serial.print("% Analog voltage: ");
-  Serial.print(analogVoltage);
-  Serial.print(" Voltage: ");
-  Serial.println(voltage);
-}
-
 bool shouldWater(short hour) {
   // Do nothing if we already watered this hour
   if (wateredHour == hour)
@@ -246,8 +222,10 @@ bool shouldWater(short hour) {
 }
 
 void setup() {
+  // Setup Serial
   Serial.begin(115200);
   delay(1000);
+  Serial.println("Ready");
 
   // MOSFET
   pinMode(MOSFET_PUMP, OUTPUT);
@@ -264,8 +242,8 @@ void setup() {
   pinDebouncer.begin();
 
   // LED
-  pinMode(LED_ACTION, OUTPUT);
-  digitalWrite(LED_ACTION, LOW);
+  ledSetup();
+  ledBlink(500);
 
   // Hygro, OneWire & DHT
   setupSensor();
@@ -275,9 +253,6 @@ void setup() {
 
   // Setup NTP
   setupTime();
-
-  // Setup Serial
-  Serial.println("Ready");
 
   // Setup deep sleep
   bool manual = check_wakeup_reason();
@@ -311,12 +286,15 @@ void setup() {
     Serial.printf("Measurement only. Staying awake for %d seconds\n", timeToStayAwake);
     mqttSendEvent(ACTION, 1);
   }
+
+  ledBlink(0);
 }
 
 void loop() {
   pinDebouncer.update();
   wm.process();
   mqtt.loop();
+  ledProcess();
 
   if (readSensor()) {
     serialLog();

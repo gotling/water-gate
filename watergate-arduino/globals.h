@@ -23,6 +23,9 @@
 // Battery voltage
 #define BATTERY_PIN 33
 
+// LED
+#define LED_ACTION 14
+
 // NTP
 constexpr const char* ntpServer = "se.pool.ntp.org";
 constexpr const long gmtOffset_sec = 3600;
