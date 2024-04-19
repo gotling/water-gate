@@ -1,4 +1,5 @@
 #include "sensor.h"
+#include "globals.h"
 
 #include <DHT.h>
 #include <OneWire.h>
@@ -11,8 +12,8 @@ int humidityOffset = 0;
 OneWire oneWire(ONE_WIRE_PIN);
 DallasTemperature owSensors(&oneWire);
 
-unsigned long sensorTime = millis();
-unsigned long hygroTime = millis();
+unsigned long sensorTime = millis() - SENSOR_INTERVAL;
+unsigned long hygroTime = millis() - SENSOR_INTERVAL;
 
 /**
  * Turn on power to hygro sensors in preparation for reading their values
@@ -26,9 +27,9 @@ void primeHygro(bool state) {
  * Read value from the hygro sensors
  */
 void readHygro() {
-  hyg1 = hygToPercentage(analogRead(HYG_1_PIN));
-  hyg2 = hygToPercentage(analogRead(HYG_2_PIN));
-  hyg3 = hygToPercentage(analogRead(HYG_3_PIN));
+  hyg1 += hygToPercentage(analogRead(HYG_1_PIN));
+  hyg2 += hygToPercentage(analogRead(HYG_2_PIN));
+  hyg3 += hygToPercentage(analogRead(HYG_3_PIN));
 }
 
 /**
@@ -48,11 +49,11 @@ void readTempHum() {
   float newH = dht.readHumidity();
   
   if (!isnan(newT)) {
-    temperature = (newT + temperatureOffset) / 100 * 100;
+    temperature += (newT + temperatureOffset) / 100 * 100;
   }
   
   if (!isnan(newH)) {
-    humidity = newH + humidityOffset;
+    humidity += newH + humidityOffset;
   }
 
   // oneWire sensor
@@ -60,7 +61,7 @@ void readTempHum() {
   float newSoilTemperature = owSensors.getTempCByIndex(0);
 
   if (!isnan(newSoilTemperature) && newSoilTemperature > -127) {
-    soilTemperature = newSoilTemperature / 100 * 100;
+    soilTemperature += newSoilTemperature / 100 * 100;
   }
 }
 
@@ -71,7 +72,7 @@ void readVoltage() {
   analogVoltage = analogRead(BATTERY_PIN);
  
   // Max 14.5 = 4096
-  voltage = (float)analogVoltage / VOLTAGE_MULTIPLIER;
+  voltage += (float)analogVoltage / VOLTAGE_MULTIPLIER;
 }
 
 /**
@@ -113,22 +114,29 @@ void setupSensor() {
  * @returns bool true if data has been read
  */
 bool readSensor() {
-  // Read DHT22 and prepare for hygro reading
+  // Prepare for hygro reading
   if (millis() - sensorTime >= SENSOR_INTERVAL) {
-    readTempHum();
-    readLevel();
-    sensorTime = millis();
-
     primeHygro(true);
     hygroTime = millis();
+    sensorTime = millis();
   }
 
-  // Read hygro after waiting for warmup
+  // Read temperatures and hygro after waiting for warmup
   if (hygroActive && millis() - hygroTime >= HYGRO_WARMUP_TIME) {
+    readingRound++;
+    if (readingRound > 3) {
+      readingRound = 1;
+      temperature = humidity = voltage = hyg1 = hyg2 = hyg3 = soilTemperature = 0;
+    }
+
+    readTempHum();
+    readLevel();
+
     readHygro();
     primeHygro(false);
 
     readVoltage();
+
     return true;
   }
 

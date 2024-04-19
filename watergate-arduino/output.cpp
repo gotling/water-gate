@@ -23,8 +23,7 @@ void ledBlink(short interval) {
 
 void ledProcess() {
   if ((ledInterval > 0) && (millis() - ledTime >= ledInterval)) {
-    Serial.printf("Blink led: %b\n", ledState);
-    ledState != ledState;
+    ledState = !ledState;
     led(ledState);
     ledTime = millis();
   }
@@ -32,24 +31,24 @@ void ledProcess() {
 
 void serialLog() {
   Serial.print("Temp: ");
-  Serial.print(temperature);
+  Serial.print(temperature / readingRound);
   Serial.print(" °C");
   Serial.print(" Humidity: ");
-  Serial.print(humidity);
+  Serial.print(humidity / readingRound);
   Serial.print(" % ");
   Serial.print("Soil Temp: ");
-  Serial.print(soilTemperature);
+  Serial.print(soilTemperature / readingRound);
   Serial.print(" °C");
   Serial.print(" Hygro 1: ");
-  Serial.print(hyg1);
+  Serial.print(hyg1 / readingRound);
   Serial.print("% Hygro 2: ");
-  Serial.print(hyg2);
+  Serial.print(hyg2 / readingRound);
   Serial.print("% Hygro 3: ");
-  Serial.print(hyg3);
+  Serial.print(hyg3 / readingRound);
   Serial.print("% Analog voltage: ");
-  Serial.print(analogVoltage);
+  Serial.print(analogVoltage) / readingRound;
   Serial.print(" Voltage: ");
-  Serial.print(voltage);
+  Serial.print(voltage / readingRound);
   Serial.print(" Level: ");
   Serial.println(level);
 }

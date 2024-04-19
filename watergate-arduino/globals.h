@@ -2,7 +2,7 @@
 #define GLOBALS_H
 
 #define ANALOG_MAX 4095
-#define VOLTAGE_MULTIPLIER 269
+#define VOLTAGE_MULTIPLIER 272
 #define uS_TO_S_FACTOR 1000000LL  /* Conversion factor for micro seconds to seconds */
 
 // PIN assignments
@@ -33,6 +33,7 @@ constexpr const int daylightOffset_sec = 3600;
 
 // State
 extern bool hygroActive;
+extern short readingRound;
 extern float hyg1;
 extern float hyg2;
 extern float hyg3;

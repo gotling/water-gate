@@ -1,10 +1,23 @@
+#include <time.h>
+#include <esp_sntp.h>
+#include "RTClib.h"
+
 #include "time_functions.h"
 #include "globals.h"
 
-#include <time.h>
+RTC_DS3231 rtc;
+char t[32];
+bool rtcReady = false;
 
 int bootCount = 0;
 short waterFailSafe = AUTO_WATER_FAIL_SAFE;
+
+void time_sync_notification_cb(struct timeval *tv) {
+  Serial.println("Time synchronized from NTP server, setting RTC clock");
+  unsigned long unix_epoch = getEpochTime();// + gmtOffset_sec + daylightOffset_sec;  // Get epoch time
+  if (rtcReady == true)
+    rtc.adjust(DateTime(unix_epoch));
+}
 
 /**
  * Handle different wakeup reasons
@@ -76,7 +89,7 @@ void printLocalTime() {
     Serial.println("Failed to obtain time");
     return;
   }
-  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+  Serial.println(&timeinfo, "%Y-%m-%d %H:%M:%S");
 }
 
 /**
@@ -95,10 +108,47 @@ short getHour() {
   return atoi(timeHour);
 }
 
+// Function that gets current epoch time
+unsigned long getEpochTime() {
+  time_t now;
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    //Serial.println("Failed to obtain time");
+    return(0);
+  }
+  time(&now);
+  return now;
+}
+
 /**
  * Setup NTP concfguration
  */
 void setupTime() {
+  sntp_set_time_sync_notification_cb(time_sync_notification_cb);
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   printLocalTime();
+}
+
+void setupRTC() {
+  if (!rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    return;
+  }
+
+  rtcReady = true;
+
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, let's set the time!");
+    unsigned long unix_epoch = getEpochTime();// + gmtOffset_sec + daylightOffset_sec;  // Get epoch time
+    rtc.adjust(DateTime(unix_epoch));  // Set RTC time using NTP epoch time
+  }
+
+  DateTime rtcTime = rtc.now();
+  struct timeval now = { .tv_sec = (long) rtcTime.unixtime(), .tv_usec = 0}; // &dstm.tm_ds
+  settimeofday(&now, NULL);
+
+  Serial.print("ESP: ");
+  printLocalTime();
+  sprintf(t, "RTC: %02d-%02d-%02d %02d:%02d:%02d", rtcTime.year(), rtcTime.month(), rtcTime.day(), rtcTime.hour(), rtcTime.minute(), rtcTime.second());
+  Serial.println(t);
 }

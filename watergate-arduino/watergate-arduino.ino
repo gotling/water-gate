@@ -23,6 +23,7 @@
 #include <WiFiManager.h>
 #include <PubSubClient.h>
 #include <time.h>
+#include "RTClib.h"
 
 #include "config.h"
 #include "globals.h"
@@ -44,7 +45,7 @@ FTDebouncer pinDebouncer;
 #define MOSFET_PUMP 13
 
 // Network
-WiFiManager wm;
+//WiFiManager wm;
 WiFiClientSecure client;
 PubSubClient mqtt(client);
 
@@ -57,6 +58,7 @@ PubSubClient mqtt(client);
 
 // State
 bool hygroActive = false;
+short readingRound = 0;
 float hyg1 = 0;
 float hyg2 = 0;
 float hyg3 = 0;
@@ -80,13 +82,13 @@ states state = MEASURING;
 
 // Timers
 unsigned long wakeTime = millis();
-#define  MAX_PUMP_TIME 180000 // 3 minutes
+#define  MAX_PUMP_TIME 180000 // 3 minute
 unsigned long pumpStartTime = millis();
 unsigned long timeToStayAwake;
 #define MAX_WAKE_TIME 900000 // 15 minutes
 
 // Automation
-short waterHour[] = { 6, 19 };
+short waterHour[] = { 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22 };
 RTC_DATA_ATTR short wateredHour = -1;
 
 typedef enum {
@@ -226,6 +228,8 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("Ready");
+  esp_wifi_start();
+  esp_wifi_restore();
 
   // MOSFET
   pinMode(MOSFET_PUMP, OUTPUT);
@@ -243,7 +247,7 @@ void setup() {
 
   // LED
   ledSetup();
-  ledBlink(500);
+  ledBlink(1000);
 
   // Hygro, OneWire & DHT
   setupSensor();
@@ -253,6 +257,9 @@ void setup() {
 
   // Setup NTP
   setupTime();
+
+  // Setup RTC
+  setupRTC();
 
   // Setup deep sleep
   bool manual = check_wakeup_reason();
@@ -287,19 +294,34 @@ void setup() {
     mqttSendEvent(ACTION, 1);
   }
 
-  ledBlink(0);
+  ledBlink(500);
 }
+
+//bool lState = HIGH;
 
 void loop() {
   pinDebouncer.update();
-  wm.process();
+  //wm.process();
   mqtt.loop();
   ledProcess();
 
   if (readSensor()) {
     serialLog();
-    if (WiFi.status() == WL_CONNECTED)
-      mqttSend();
+
+    if (readingRound % 3 == 0) {
+      temperature = temperature / readingRound;
+      humidity = humidity / readingRound;
+      voltage = voltage / readingRound;
+      hyg1 = hyg1 / readingRound;
+      hyg2 = hyg2 / readingRound;
+      hyg3 = hyg3 / readingRound;
+      soilTemperature = soilTemperature / readingRound;
+
+      if (WiFi.status() == WL_CONNECTED) {
+        ledBlink(0);
+        mqttSend();
+      }
+    }
   }
 
   // Stops pump after 3 minutes if sensors has not triggered yet
@@ -323,13 +345,23 @@ void loop() {
     mqttSendEvent(ACTION, 0);
     int seconds = secondsTillNextHour();
     // Wait a bit longer to be sure hour has changed
-    seconds += 300;
+    seconds += 10;
+    
+    Serial.println("Disconnecting MQTT..");
+    mqtt.disconnect();
+    delay(100);
+
+    Serial.println("Disconnecting WiFi..");
+    esp_wifi_disconnect();
+    delay(100);
+    esp_wifi_stop();
+    delay(100);
+    esp_wifi_deinit();
+    delay(100);
+
     Serial.printf("Going to sleep for %d seconds", seconds);
     Serial.flush();
     esp_sleep_enable_timer_wakeup(seconds * uS_TO_S_FACTOR);
-    esp_wifi_stop();
-    //adc_power_release();
-    delay(1000);
     esp_deep_sleep_start();
   }
 }

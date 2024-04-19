@@ -24,27 +24,79 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-void setupWiFi() {
-  // WiFi & Config
+void setupWiFi() {  
+  //myDisplay.setFont(nullptr);
+  Serial.print("Connecting to: " + String(WIFI_NAME));
   WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
+
+
+  //esp_wifi_set_mode(WIFI_MODE_STA);
+  //esp_wifi_start();
+  //Serial.println(esp_wifi_start());
+  //WiFi.disconnect();
+  //WiFi.reconnect();
+
+  short tick = 0;
+  short timeout_counter = 0;
+
+  led(true);
+  while(WiFi.status() != WL_CONNECTED) 
+  {
+    delay(500);
+
+    switch(tick % 2) {
+      case 0:
+        led(false);
+        break;
+      case 1:
+        led(true);
+        break;
+    }
+    Serial.print(".");
+    tick++;
+
+    timeout_counter++;
+    if(timeout_counter >= 120){
+      break;
+    }
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print(F("\nConnected! IP address: "));
+    Serial.println(WiFi.localIP());
+    led(false);
+  } else {
+    Serial.println("");
+    Serial.println("Failed to connect to WiFi");
+    //ESP.restart();
+  }
+  
+  // WiFi & Config
+  //WiFi.mode(WIFI_STA);
   //wm.resetSettings();
-  wm.setConfigPortalBlocking(false);
-  wm.setConfigPortalTimeout(120);
-  wm.setConnectTimeout(30);
-  //wm.setParamsPage(true);
+  // wm.setConfigPortalBlocking(false);
+  // wm.setConfigPortalTimeout(120);
+  // //wm.setConnectTimeout(30);
+  // //wm.setParamsPage(true);
+  // wm.setConnectTimeout(10);
+  // wm.setConnectRetries(6);
+  // //if (wm.getWiFiIsSaved())
+  // //  wm.setEnableConfigPortal(false);
 
-  // invert theme, dark
-  wm.setDarkMode(true);
-  // set Hostname
-  //wm.setHostname("Watergate");
-  wm.setBreakAfterConfig(true);
+  // // invert theme, dark
+  // wm.setDarkMode(true);
+  // // set Hostname
+  // //wm.setHostname("Watergate");
+  // wm.setBreakAfterConfig(true);
 
-  if (wm.autoConnect("Watergate")) {
-      Serial.println("Connected to WiFi");
-  }
-  else {
-      Serial.println("Configuration portal running");
-  }
+  // if (wm.autoConnect("Watergate")) {
+  //     Serial.println("Connected to WiFi");
+  //     ledBlink(0);
+  // } else {
+  //     Serial.println("Configuration portal running");
+  //     ledBlink(2000);
+  // }
   //wm.startConfigPortal("Watergate");
 
   clientId = "ESP32Client-";
@@ -64,6 +116,11 @@ bool mqttConnect() {
 
   if (mqtt.connected()) {
     return true;
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi not connected, skipping MQTT");
+    return false;
   }
 
   Serial.print("Connecting to MQTT... ");

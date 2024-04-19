@@ -8,8 +8,8 @@
 // DHT temperature and humidity
 #define DHTTYPE DHT22
 
-#define SENSOR_INTERVAL 15000
-#define HYGRO_WARMUP_TIME 500
+#define SENSOR_INTERVAL 10000
+#define HYGRO_WARMUP_TIME 2000
 
 void primeHygro(bool state);
 float hygToPercentage(short value);
