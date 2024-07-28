@@ -108,6 +108,25 @@ short getHour() {
   return atoi(timeHour);
 }
 
+/**
+ * Get the current weekday day from NTP data
+ * @returns short the day or -1
+ */
+short getWeekDay() {
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return -1;
+  }
+
+  char timeWeekDay[3];
+  strftime(timeWeekDay, 3, "%w", &timeinfo);
+  if (atoi(timeWeekDay) == 0)
+    return 7;
+  else
+    return atoi(timeWeekDay);
+}
+
 // Function that gets current epoch time
 unsigned long getEpochTime() {
   time_t now;

@@ -12,8 +12,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
     Serial.println(atoi((char *)payload));
     switch (atoi((char *)payload)) {
       case 11:
-        Serial.println("Remote Action: Start pump");
-        pump(true);
+        Serial.println("Remote Action: Start/stop pump");
+        pump(!actionPump);
         break;
       case 12:
         Serial.println("Remote Action: Enable nutrition");
@@ -57,7 +57,7 @@ void setupWiFi() {
     tick++;
 
     timeout_counter++;
-    if(timeout_counter >= 120){
+    if(timeout_counter >= 60){
       break;
     }
   }
@@ -136,7 +136,7 @@ bool mqttConnect() {
 }
 
 void mqttSend() {
-  sprintf(message, "temperature,%.1f\nhumidity,%d\nvoltage,%.1f\nhyg1,%.1f\nhyg2,%.1f\nhyg3,%.1f\nsoil_temperature,%.1f\nlevel,%d", temperature, humidity, voltage, hyg1, hyg2, hyg3, soilTemperature, level);
+  sprintf(message, "temperature,%.1f\nhumidity,%d\nvoltage,%.1f\nhyg1,%.1f\nhyg2,%.1f\nhyg3,%.1f\nlevel,%d", temperature, humidity, voltage, hyg1, hyg2, hyg3, level);
 
   if (mqttConnect()) {
     if (mqtt.publish(MQTT_TOPIC, message)) {

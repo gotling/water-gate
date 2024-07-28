@@ -85,11 +85,14 @@ unsigned long wakeTime = millis();
 #define  MAX_PUMP_TIME 180000 // 3 minute
 unsigned long pumpStartTime = millis();
 unsigned long timeToStayAwake;
-#define MAX_WAKE_TIME 900000 // 15 minutes
+#define MAX_WAKE_TIME 600000 // 10 minutes
 
 // Automation
-short waterHour[] = { 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22 };
+short waterHour[] = { 6 };
 RTC_DATA_ATTR short wateredHour = -1;
+
+short nutritionWeekDays[] = { 1, 4 };
+RTC_DATA_ATTR short nutritionAddedDay = -1;
 
 typedef enum {
   ACTION,
@@ -214,8 +217,26 @@ bool shouldWater(short hour) {
   if (wateredHour == hour)
     return false;
 
+  if (hour > wateredHour)
+    wateredHour = -1;
+
+
   for(int i = 0; i < sizeof(waterHour) / sizeof(waterHour[0]); i++) {
     if (waterHour[i] == hour) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool shouldAddNutrition(short weekDay) {
+  // Do nothing if we already added nutrtion this day
+  if (nutritionAddedDay == weekDay)
+    return false;
+
+  for(int i = 0; i < sizeof(nutritionWeekDays) / sizeof(nutritionWeekDays[0]); i++) {
+    if (nutritionWeekDays[i] == weekDay) {
       return true;
     }
   }
@@ -267,14 +288,22 @@ void setup() {
   // Wake up on button press
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 0);
 
-  short hour = getHour();  
+  short hour = getHour();
+  short weekDay = getWeekDay();
 
   // Auto water if hour is correct and this is not our first boot
   if ((bootCount > 0) && shouldWater(hour) || (waterFailSafe <= 0)) {
+    // TODO: Water fail safe needs to be updated now we have a working RTC
     if (waterFailSafe <= 0)
       mqttSendEvent(ACTION, 5);
     
     wateredHour = hour;
+
+    if (shouldAddNutrition(weekDay)) {
+      actionNut = true;
+      nutritionAddedDay = weekDay;
+    }
+
     pump(true);
     timeToStayAwake = WAKE_TIME_LONG;
     state = WATERING;
@@ -345,7 +374,7 @@ void loop() {
     mqttSendEvent(ACTION, 0);
     int seconds = secondsTillNextHour();
     // Wait a bit longer to be sure hour has changed
-    seconds += 10;
+    seconds += 60;
     
     Serial.println("Disconnecting MQTT..");
     mqtt.disconnect();
